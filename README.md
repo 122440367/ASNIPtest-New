@@ -25,7 +25,7 @@
 
 **Linux / macOS**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/e13815332/ASNIPtest/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/122440367/ASNIPtest/main/install.sh | bash
 cmtjd
 ```
 
@@ -35,7 +35,7 @@ cmtjd
 wsl --install
 
 # 重启后进 Ubuntu 终端
-curl -fsSL https://raw.githubusercontent.com/e13815332/ASNIPtest/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/122440367/ASNIPtest/main/install.sh | bash
 cmtjd
 ```
 
