@@ -36,15 +36,15 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: '1.22'
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.10'
 
@@ -128,6 +128,30 @@ jobs:
 
           # 仅通过环境变量传递敏感信息；不输出 URL、Token 或 Worker 响应正文。
           worker_endpoint="${SPD_WORKER_URL%/}/upload-ips"
+          clear_endpoint="${SPD_WORKER_URL%/}/clear-uploaded-ips"
+
+          # Clear the Worker-side uploaded IP list before replacing it with this run's result.
+          if ! clear_http_code="$(curl \
+            --silent \
+            --show-error \
+            --fail-with-body \
+            --retry 2 \
+            --connect-timeout 15 \
+            --max-time 120 \
+            -X POST \
+            -H "Authorization: Bearer ${SPD_API_TOKEN}" \
+            -o "$response_file" \
+            -w '%{http_code}' \
+            "$clear_endpoint" 2>"$curl_error_file")"; then
+            echo "::error::清空 Worker 端 iplist.txt 失败，请检查 Worker 地址、Token 和网络连接。"
+            exit 1
+          fi
+
+          if [[ "$clear_http_code" != 2* ]] || ! jq -e '.success == true' "$response_file" >/dev/null 2>&1; then
+            echo "::error::Worker 拒绝清空 iplist.txt 请求（HTTP ${clear_http_code}）。"
+            exit 1
+          fi
+
           if ! http_code="$(curl \
             --silent \
             --show-error \
@@ -174,7 +198,7 @@ jobs:
 
       - name: Upload Result Artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: asn-cf-results-${{ github.run_id }}
           path: result.csv
