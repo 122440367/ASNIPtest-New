@@ -6,7 +6,7 @@ on:
       asns:
         description: 'ASN 列表 (逗号分隔)'
         required: true
-        default: 'AS61112,AS8888,AS906'
+        default: 'AS61112,AS8888,AS906,AS25820'
         type: string
       port:
         description: '扫描端口'
