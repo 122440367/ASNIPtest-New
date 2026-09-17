@@ -67,7 +67,7 @@ jobs:
           rm -f output_*.csv
 
           # 获取待扫描的 ASN、端口与速率
-          ASNS="${{ github.event.inputs.asns || 'AS61112,AS8888,AS906' }}"
+          ASNS="${{ github.event.inputs.asns || 'AS61112,AS8888,AS906,AS25820' }}"
           PORT="${{ github.event.inputs.port || '443' }}"
           RATE="${{ github.event.inputs.masscan_rate || '10000' }}"
 
