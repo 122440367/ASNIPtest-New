@@ -4,7 +4,7 @@
 cf-ip-scanner — 从 ASN 拉取 IP，masscan 扫描，检测 Cloudflare 反代节点
 用法: python3 run.py AS209242 [AS3214 ...]
 """
-import sys, os, subprocess, json, urllib.request, multiprocessing, socket, time
+import sys, os, subprocess, json, urllib.request, multiprocessing, socket, time, shutil
 from pathlib import Path
 from datetime import datetime
 
@@ -102,6 +102,9 @@ BASE      = Path(__file__).parent.resolve()
 CF_SCANNER = BASE / "cf-scanner"
 VERIFY_PY  = BASE / "verify.py"
 API_URL    = "https://api.090227.xyz/check"
+DOWNLOAD_PORT = 8899
+DOWNLOAD_PID_FILE = BASE / ".http_server_8899.pid"
+DOWNLOAD_LOG_FILE = BASE / "http_server_8899.log"
 
 # 确保 cf-scanner 有执行权限 (git clone 不保留 +x)
 if CF_SCANNER.is_file():
@@ -288,6 +291,47 @@ def speed_test():
 
     sys.stderr.write(f"\r  测速完成: {total} 个节点{'':40}\n")
 
+def _pid_running(pid):
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+def _port_open(host, port):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(0.5)
+    try:
+        return sock.connect_ex((host, port)) == 0
+    finally:
+        sock.close()
+
+def ensure_download_server():
+    if DOWNLOAD_PID_FILE.exists():
+        try:
+            pid = int(DOWNLOAD_PID_FILE.read_text().strip())
+            if _pid_running(pid):
+                return
+        except Exception:
+            pass
+        try:
+            DOWNLOAD_PID_FILE.unlink()
+        except Exception:
+            pass
+
+    if _port_open("127.0.0.1", DOWNLOAD_PORT):
+        return
+
+    with open(DOWNLOAD_LOG_FILE, "ab") as logf:
+        proc = subprocess.Popen(
+            ["python3", "-m", "http.server", str(DOWNLOAD_PORT), "--directory", str(BASE)],
+            stdin=subprocess.DEVNULL,
+            stdout=logf,
+            stderr=logf,
+            start_new_session=True
+        )
+    DOWNLOAD_PID_FILE.write_text(str(proc.pid))
+
 # ── 输出 + 下载链接 ──
 def output_csv(asns):
     verified_file = BASE / "verified.txt"
@@ -313,23 +357,21 @@ def output_csv(asns):
         for line in lines:
             f.write(line + "\n")
 
+    latest_output = BASE / "output_latest.csv"
+    shutil.copyfile(output, latest_output)
+
     print(f"\n  结果: {len(lines)} 条 → {output.name}")
 
-    # ── 提供下载链接 (支持 NAT/Docker 环境) ──
+    # ── 提供常驻下载链接 (支持 NAT/Docker 环境) ──
     try:
         ip = get_public_ip()
-        port = 8899
-        print(f"\n  📥 下载链接 (临时, 按回车关闭):")
-        print(f"  http://{ip}:{port}/{output.name}")
+        ensure_download_server()
+        print(f"\n  📥 下载链接 (常驻):")
+        print(f"  最新结果: http://{ip}:{DOWNLOAD_PORT}/{latest_output.name}")
+        print(f"  本次结果: http://{ip}:{DOWNLOAD_PORT}/{output.name}")
         print()
-        server = subprocess.Popen(
-            ["python3", "-m", "http.server", str(port), "--directory", str(BASE)],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-        )
-        input()
-        server.terminate()
-        server.wait()
-    except:
+    except Exception as e:
+        print(f"  下载链接启动失败: {e}")
         pass
 
 # ── Main ──
