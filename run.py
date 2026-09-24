@@ -4,9 +4,8 @@
 cf-ip-scanner — 从 ASN 拉取 IP，masscan 扫描，检测 Cloudflare 反代节点
 用法: python3 run.py AS209242 [AS3214 ...]
 """
-import sys, os, subprocess, json, urllib.request, multiprocessing, socket, time, shutil
+import sys, os, subprocess, json, urllib.request, multiprocessing, socket, time
 from pathlib import Path
-from datetime import datetime
 
 # ── 自适应硬件 ──
 def detect_hardware():
@@ -339,9 +338,13 @@ def output_csv(asns):
         print("  无结果")
         return
 
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    asn_tag = "_".join(asns)
-    output = BASE / f"output_{asn_tag}_{ts}.csv"
+    latest_output = BASE / "output_latest.csv"
+    for csv_file in BASE.glob("*.csv"):
+        if csv_file.name != latest_output.name:
+            try:
+                csv_file.unlink()
+            except Exception:
+                pass
 
     lines = []
     with open(verified_file) as f:
@@ -352,15 +355,12 @@ def output_csv(asns):
             if line.count(",") >= 8:
                 lines.append(line)
 
-    with open(output, "w") as f:
+    with open(latest_output, "w") as f:
         f.write("IP地址,端口,TLS,数据中心,地区,城市,网络延迟,下载速度,ASN\n")
         for line in lines:
             f.write(line + "\n")
 
-    latest_output = BASE / "output_latest.csv"
-    shutil.copyfile(output, latest_output)
-
-    print(f"\n  结果: {len(lines)} 条 → {output.name}")
+    print(f"\n  结果: {len(lines)} 条 → {latest_output.name}")
 
     # ── 提供常驻下载链接 (支持 NAT/Docker 环境) ──
     try:
@@ -368,7 +368,6 @@ def output_csv(asns):
         ensure_download_server()
         print(f"\n  📥 下载链接 (常驻):")
         print(f"  最新结果: http://{ip}:{DOWNLOAD_PORT}/{latest_output.name}")
-        print(f"  本次结果: http://{ip}:{DOWNLOAD_PORT}/{output.name}")
         print()
     except Exception as e:
         print(f"  下载链接启动失败: {e}")
