@@ -100,7 +100,7 @@ GLOBAL_IP, GLOBAL_COUNTRY, GLOBAL_ISP = detect_isp()
 BASE      = Path(__file__).parent.resolve()
 CF_SCANNER = BASE / "cf-scanner"
 VERIFY_PY  = BASE / "verify.py"
-API_URL    = "https://api.090227.xyz/check"
+API_URL    = "https://aapi.472988.xyz/check"
 DOWNLOAD_PORT = 8899
 DOWNLOAD_PID_FILE = BASE / ".http_server_8899.pid"
 DOWNLOAD_LOG_FILE = BASE / "http_server_8899.log"
@@ -134,8 +134,8 @@ def fetch_prefixes(asns):
 def expand_ips():
     ip_file = BASE / "ips.txt"
     total = 0
-    with open(ip_file, "w") as out:
-        with open(BASE / "cidrs.txt") as f:
+    with open(ip_file, "w", encoding="utf-8") as out:
+        with open(BASE / "cidrs.txt", encoding="utf-8") as f:
             for cidr in f:
                 cidr = cidr.strip()
                 if not cidr:
@@ -150,7 +150,7 @@ def expand_ips():
 
 # ── Step 3: masscan 端口扫描 ──
 def run_masscan():
-    ports = ",".join(line.strip() for line in open(BASE / "ports.txt") if line.strip() and not line.startswith("#"))
+    ports = ",".join(line.strip() for line in open(BASE / "ports.txt", encoding="utf-8") if line.strip() and not line.startswith("#"))
     result_file = BASE / "masscan_result.txt"
     ip_file = BASE / "ips.txt"
 
@@ -167,7 +167,7 @@ def run_masscan():
 
     # 转换为 IP:port
     lines = []
-    with open(result_file) as f:
+    with open(result_file, encoding="utf-8") as f:
         for line in f:
             if line.startswith("#") or not line.strip():
                 continue
@@ -190,7 +190,7 @@ def cf_scan():
     if not os.access(CF_SCANNER, os.X_OK):
         os.chmod(CF_SCANNER, 0o755)
     subprocess.run([str(CF_SCANNER), "-i", str(new_file), "-o", str(hits_file), "-c", str(CF_SCANNER_CONC)], check=True)
-    hits = sum(1 for _ in open(hits_file))
+    hits = sum(1 for _ in open(hits_file, encoding="utf-8"))
     print(f"  CF 节点: {hits}")
     return hits
 
@@ -204,14 +204,15 @@ def api_verify():
         return 0
 
     subprocess.run([
-        "python3", str(VERIFY_PY),
+        sys.executable, str(VERIFY_PY),
         "--input", str(hits_file),
         "--output", str(verified_file),
         "--api", API_URL,
         "--chunk", str(API_CHUNK),
         "--concurrent", str(API_CONCURRENT)
     ], check=True)
-    passed = sum(1 for _ in open(verified_file))
+    with open(verified_file, encoding="utf-8") as _vf:
+        passed = sum(1 for _line in _vf if _line.strip() and not _line.startswith("IP地址"))
     print(f"  精筛通过: {passed}")
     return passed
 
@@ -223,7 +224,7 @@ def speed_test():
         return
 
     lines = []
-    with open(verified_file) as f:
+    with open(verified_file, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("#"):
@@ -244,7 +245,7 @@ def speed_test():
 
     print(f"  节点数: {total}")
 
-    with open(verified_file, "w") as f:
+    with open(verified_file, "w", encoding="utf-8", newline="") as f:
         f.write(header + "\n")
         for entry in entries:
             parts = entry.split(",")
@@ -323,7 +324,7 @@ def ensure_download_server():
 
     with open(DOWNLOAD_LOG_FILE, "ab") as logf:
         proc = subprocess.Popen(
-            ["python3", "-m", "http.server", str(DOWNLOAD_PORT), "--directory", str(BASE)],
+            [sys.executable, "-m", "http.server", str(DOWNLOAD_PORT), "--directory", str(BASE)],
             stdin=subprocess.DEVNULL,
             stdout=logf,
             stderr=logf,
@@ -347,7 +348,7 @@ def output_csv(asns):
                 pass
 
     lines = []
-    with open(verified_file) as f:
+    with open(verified_file, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("#") or line.startswith("IP地址"):
@@ -355,7 +356,7 @@ def output_csv(asns):
             if line.count(",") >= 8:
                 lines.append(line)
 
-    with open(latest_output, "w") as f:
+    with open(latest_output, "w", encoding="utf-8-sig", newline="") as f:
         f.write("IP地址,端口,TLS,数据中心,地区,城市,网络延迟,下载速度,ASN\n")
         for line in lines:
             f.write(line + "\n")
